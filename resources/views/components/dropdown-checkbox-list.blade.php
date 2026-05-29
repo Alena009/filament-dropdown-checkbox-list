@@ -211,23 +211,29 @@
                     @endif
                 @endif
 
-                <x-filament::grid
-                        :default="$getColumns('default')"
-                        :sm="$getColumns('sm')"
-                        :md="$getColumns('md')"
-                        :lg="$getColumns('lg')"
-                        :xl="$getColumns('xl')"
-                        :two-xl="$getColumns('2xl')"
-                        :direction="$gridDirection"
-                        :x-show="$isSearchable ? 'visibleCheckboxListOptions.length' : null"
-                        :attributes="
-                        \Filament\Support\prepare_inherited_attributes($attributes)
-                            ->merge($getExtraAttributes(), escape: false)
-                            ->class([
-                                'fi-fo-checkbox-list gap-4',
-                                '-mt-4' => $gridDirection === 'column',
-                            ])
-                    "
+                @php
+                    $getGridClass = function ($breakpoint, $columns) {
+                        if (! $columns) return null;
+                        $prefix = $breakpoint === 'default' ? '' : "{$breakpoint}:";
+                        return "{$prefix}grid-cols-{$columns}";
+                    };
+                @endphp
+                <div
+                        @if ($isSearchable) x-show="visibleCheckboxListOptions.length" @endif
+                        {{
+                            \Filament\Support\prepare_inherited_attributes($attributes)
+                                ->merge($getExtraAttributes(), escape: false)
+                                ->class([
+                                    'fi-fo-checkbox-list grid gap-4',
+                                    '-mt-4' => $gridDirection === 'column',
+                                    $getGridClass('default', $getColumns('default')),
+                                    $getGridClass('sm', $getColumns('sm')),
+                                    $getGridClass('md', $getColumns('md')),
+                                    $getGridClass('lg', $getColumns('lg')),
+                                    $getGridClass('xl', $getColumns('xl')),
+                                    $getGridClass('2xl', $getColumns('2xl')),
+                                ])
+                        }}
                 >
                     @php
                         $options = $getOptions();
@@ -304,7 +310,7 @@
                     @empty
                         <div wire:key="{{ $this->getId() }}.{{ $statePath }}.{{ $field::class }}.empty"></div>
                     @endforelse
-                </x-filament::grid>
+                </div>
 
                 @if ($isSearchable)
                     <div
