@@ -211,23 +211,46 @@
                     @endif
                 @endif
 
-                <x-filament::grid
-                        :default="$getColumns('default')"
-                        :sm="$getColumns('sm')"
-                        :md="$getColumns('md')"
-                        :lg="$getColumns('lg')"
-                        :xl="$getColumns('xl')"
-                        :two-xl="$getColumns('2xl')"
-                        :direction="$gridDirection"
-                        :x-show="$isSearchable ? 'visibleCheckboxListOptions.length' : null"
-                        :attributes="
-                        \Filament\Support\prepare_inherited_attributes($attributes)
-                            ->merge($getExtraAttributes(), escape: false)
-                            ->class([
-                                'fi-fo-checkbox-list gap-4',
-                                '-mt-4' => $gridDirection === 'column',
-                            ])
-                    "
+                <!--
+                    Tailwind JIT Safelist:
+                    columns-1 columns-2 columns-3 columns-4 columns-5 columns-6
+                    sm:columns-1 sm:columns-2 sm:columns-3 sm:columns-4 sm:columns-5 sm:columns-6
+                    md:columns-1 md:columns-2 md:columns-3 md:columns-4 md:columns-5 md:columns-6
+                    lg:columns-1 lg:columns-2 lg:columns-3 lg:columns-4 lg:columns-5 lg:columns-6
+                    xl:columns-1 xl:columns-2 xl:columns-3 xl:columns-4 xl:columns-5 xl:columns-6
+                    2xl:columns-1 2xl:columns-2 2xl:columns-3 2xl:columns-4 2xl:columns-5 2xl:columns-6
+                    
+                    grid-cols-1 grid-cols-2 grid-cols-3 grid-cols-4 grid-cols-5 grid-cols-6
+                    sm:grid-cols-1 sm:grid-cols-2 sm:grid-cols-3 sm:grid-cols-4 sm:grid-cols-5 sm:grid-cols-6
+                    md:grid-cols-1 md:grid-cols-2 md:grid-cols-3 md:grid-cols-4 md:grid-cols-5 md:grid-cols-6
+                    lg:grid-cols-1 lg:grid-cols-2 lg:grid-cols-3 lg:grid-cols-4 lg:grid-cols-5 lg:grid-cols-6
+                    xl:grid-cols-1 xl:grid-cols-2 xl:grid-cols-3 xl:grid-cols-4 xl:grid-cols-5 xl:grid-cols-6
+                    2xl:grid-cols-1 2xl:grid-cols-2 2xl:grid-cols-3 2xl:grid-cols-4 2xl:grid-cols-5 2xl:grid-cols-6
+                -->
+                @php
+                    $getGridClass = function ($breakpoint, $columns) use ($gridDirection) {
+                        if (! $columns) return null;
+                        $prefix = $breakpoint === 'default' ? '' : "{$breakpoint}:";
+                        return $gridDirection === 'column' ? "{$prefix}columns-{$columns}" : "{$prefix}grid-cols-{$columns}";
+                    };
+                @endphp
+                <div
+                        @if ($isSearchable) x-show="visibleCheckboxListOptions.length" @endif
+                        {{
+                            \Filament\Support\prepare_inherited_attributes($attributes)
+                                ->merge($getExtraAttributes(), escape: false)
+                                ->class([
+                                    'fi-fo-checkbox-list gap-4',
+                                    'grid' => $gridDirection === 'row',
+                                    '-mt-4' => $gridDirection === 'column',
+                                    $getGridClass('default', $getColumns('default')),
+                                    $getGridClass('sm', $getColumns('sm')),
+                                    $getGridClass('md', $getColumns('md')),
+                                    $getGridClass('lg', $getColumns('lg')),
+                                    $getGridClass('xl', $getColumns('xl')),
+                                    $getGridClass('2xl', $getColumns('2xl')),
+                                ])
+                        }}
                 >
                     @php
                         $options = $getOptions();
@@ -304,7 +327,7 @@
                     @empty
                         <div wire:key="{{ $this->getId() }}.{{ $statePath }}.{{ $field::class }}.empty"></div>
                     @endforelse
-                </x-filament::grid>
+                </div>
 
                 @if ($isSearchable)
                     <div
