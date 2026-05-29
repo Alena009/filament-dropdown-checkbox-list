@@ -212,10 +212,10 @@
                 @endif
 
                 @php
-                    $getGridClass = function ($breakpoint, $columns) {
+                    $getGridClass = function ($breakpoint, $columns) use ($gridDirection) {
                         if (! $columns) return null;
                         $prefix = $breakpoint === 'default' ? '' : "{$breakpoint}:";
-                        return "{$prefix}grid-cols-{$columns}";
+                        return $gridDirection === 'column' ? "{$prefix}columns-{$columns}" : "{$prefix}grid-cols-{$columns}";
                     };
                 @endphp
                 <div
@@ -224,7 +224,8 @@
                             \Filament\Support\prepare_inherited_attributes($attributes)
                                 ->merge($getExtraAttributes(), escape: false)
                                 ->class([
-                                    'fi-fo-checkbox-list grid gap-4',
+                                    'fi-fo-checkbox-list gap-4',
+                                    'grid' => $gridDirection === 'row',
                                     '-mt-4' => $gridDirection === 'column',
                                     $getGridClass('default', $getColumns('default')),
                                     $getGridClass('sm', $getColumns('sm')),
