@@ -4,14 +4,18 @@ namespace AlenaDashko\DropdownCheckboxList\Components;
 
 use AlenaDashko\DropdownCheckboxList\Concerns\HasDropdownSearch;
 use Filament\Forms\Components\CheckboxList;
+use Filament\Support\Concerns\HasColor;
 
 class DropdownCheckboxList extends CheckboxList
 {
+    use HasColor;
+
     protected string $view = 'dropdown-checkbox-list::components.dropdown-checkbox-list';
 
     protected ?\Closure $searchCallback = null;
     protected ?\Closure $selectedLabelsCallback = null;
     protected int|\Closure $optionsLimit = 50;
+    protected int|\Closure $maxItemsShown = 50;
 
     protected function setUp(): void
     {
@@ -41,6 +45,17 @@ class DropdownCheckboxList extends CheckboxList
     {
         $this->optionsLimit = $limit;
         return $this;
+    }
+
+    public function maxItemsShown(int|\Closure $limit): static
+    {
+        $this->maxItemsShown = $limit;
+        return $this;
+    }
+
+    public function getMaxItemsShown(): int
+    {
+        return $this->evaluate($this->maxItemsShown);
     }
 
     public function getOptionsLimit(): int

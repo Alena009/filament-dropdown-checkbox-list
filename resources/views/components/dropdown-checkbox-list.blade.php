@@ -105,53 +105,56 @@
         <x-filament::dropdown
                 max-height="400px"
                 placement="bottom-start"
-                width="full"
         >
             <x-slot name="trigger">
-                <button
-                        type="button"
-                        @class([
-                            'fi-input-wrapper flex w-full items-center justify-between mx-0 rounded-lg bg-white px-3 py-1.5 shadow-sm ring-1 ring-inset transition duration-75 focus-within:ring-2 dark:bg-white/5',
-                            'ring-gray-950/10 focus-within:ring-primary-600 dark:ring-white/20 dark:focus-within:ring-primary-500' => ! $errors->has($statePath),
-                            'ring-danger-600 focus-within:ring-danger-600 dark:ring-danger-500 dark:focus-within:ring-danger-500' => $errors->has($statePath),
-                            'opacity-70 bg-gray-50 dark:bg-transparent dark:opacity-70 cursor-not-allowed' => $isDisabled,
-                        ])
-                        @if ($isDisabled) disabled @endif
-                >
-                    <div class="flex items-center gap-1 flex-nowrap overflow-hidden h-6" :class="{ 'text-gray-950 dark:text-white': state?.length, 'text-gray-500 dark:text-gray-400': !state?.length }">
+                <div id="{{ $this->getId() }}-{{ $getStatePath() }}-trigger" style="width: 100%;">
+                <x-filament::input.wrapper :disabled="$isDisabled" :valid="! $errors->has($statePath)" class="cursor-pointer" style="width: 100%;">
+                    <div
+                            class="outline-none"
+                            style="display: flex; width: 100%; align-items: center; justify-content: space-between; padding: 0.375rem 0.75rem; min-height: 2.25rem;"
+                            @if ($isDisabled) disabled @endif
+                    >
+                        <div style="display: flex; align-items: center; gap: 0.25rem; overflow: hidden; white-space: nowrap; height: 1.5rem;" :class="{ 'text-gray-950 dark:text-white': state?.length, 'text-gray-500 dark:text-gray-400': !state?.length }">
                         <span x-show="!state || state.length === 0" class="text-sm sm:text-base leading-6 truncate">
                             {{ __('dropdown-checkbox-list::messages.placeholder') }}
                         </span>
 
-                        <template x-if="state && state.length > 0 && state.length <= 3">
+                        <template x-if="state && state.length > 0 && state.length <= {{ $getMaxItemsShown() }}">
                             <template x-for="item in state" :key="item">
-                                <span class="fi-badge flex items-center justify-center gap-x-1 rounded-md text-sm font-medium ring-1 ring-inset px-2 min-w-[max-content] py-0.5 bg-primary-50 text-primary-600 ring-primary-600/10 dark:bg-primary-400/10 dark:text-primary-400 dark:ring-primary-400/30">
-                                    <span x-text="optionsLabels[String(item)] || item" class="truncate"></span>
-                                    <button
-                                            type="button"
-                                            x-on:click.stop.prevent="removeItem(item)"
-                                            class="-mr-1 flex items-center justify-center p-0.5 text-primary-600/80 hover:text-primary-700 dark:text-primary-400/80 dark:hover:text-primary-300 rounded-md hover:bg-primary-600/10 dark:hover:bg-primary-400/20 transition"
-                                    >
-                                        <x-filament::icon
-                                                icon="heroicon-m-x-mark"
-                                                class="h-3.5 w-3.5"
-                                        />
-                                        <span class="sr-only">Odznacz</span>
-                                    </button>
-                                </span>
+                                <x-filament::badge :color="$getColor() ?? 'primary'" class="!text-primary-200 !bg-primary-600/10 !ring-primary-600/30 dark:!text-primary-200 dark:!bg-primary-600/10 dark:!ring-primary-600/30">
+                                    <x-slot name="deleteButton" x-on:mousedown.stop="" x-on:click.stop.prevent="removeItem(item)" class="!text-primary-200"></x-slot>
+                                    <span x-text="optionsLabels[String(item)] || item" style="max-width: 15rem; display: inline-block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom;"></span>
+                                </x-filament::badge>
                             </template>
                         </template>
 
-                        <span x-show="state && state.length > 3" class="text-sm sm:text-base truncate" x-text="(state ? state.length : 0) + '/{{ count($getOptions()) }} {{ __("dropdown-checkbox-list::messages.selected_count") }}'"></span>
+                        <span x-show="state && state.length > {{ $getMaxItemsShown() }}" class="text-sm sm:text-base truncate" x-text="(state ? state.length : 0) + '/{{ count($getOptions()) }} {{ __("dropdown-checkbox-list::messages.selected_count") }}'"></span>
                     </div>
                     <x-filament::icon
                             icon="heroicon-m-chevron-up-down"
                             class="h-5 w-5 text-gray-400 dark:text-gray-500"
                     />
-                </button>
+                    </div>
+                </x-filament::input.wrapper>
+                </div>
             </x-slot>
 
-            <div class="p-4" x-on:click.stop>
+            <div class="p-4" style="padding: 1rem;" x-on:click.stop x-init="
+                const updateWidth = () => {
+                    const trigger = document.getElementById('{{ $this->getId() }}-{{ $getStatePath() }}-trigger');
+                    const panel = $el.closest('.fi-dropdown-panel') || $el.closest('div[x-ref=\'panel\']');
+                    if (trigger && panel) {
+                        panel.style.setProperty('width', trigger.offsetWidth + 'px', 'important');
+                        panel.style.setProperty('min-width', trigger.offsetWidth + 'px', 'important');
+                        panel.style.setProperty('max-width', 'none', 'important');
+                    }
+                };
+                $watch('isOpen', (val) => { if (val) setTimeout(updateWidth, 10); });
+                const triggerEl = document.getElementById('{{ $this->getId() }}-{{ $getStatePath() }}-trigger');
+                if (triggerEl) {
+                    new ResizeObserver(updateWidth).observe(triggerEl);
+                }
+            ">
                 @if (! $isDisabled)
                     @if ($isSearchable)
                         <x-filament::input.wrapper
@@ -159,6 +162,7 @@
                                 prefix-icon="heroicon-m-magnifying-glass"
                                 prefix-icon-alias="forms:components.checkbox-list.search-field"
                                 class="mb-4"
+                                style="margin-bottom: 1rem;"
                         >
                             @if ($hasSearchCallback())
                                 <x-filament::input
@@ -188,6 +192,7 @@
                         <div
                                 x-cloak
                                 class="mb-4 flex gap-x-4 text-sm font-medium text-primary-600 dark:text-primary-400"
+                                style="display: flex; gap: 1rem; margin-bottom: 1rem;"
                                 wire:key="{{ $this->getId() }}.{{ $getStatePath() }}.{{ $field::class }}.actions"
                         >
                             <span
@@ -236,6 +241,7 @@
                 @endphp
                 <div
                         @if ($isSearchable) x-show="visibleCheckboxListOptions.length" @endif
+                        style="display: grid; gap: 0.5rem;"
                         {{
                             \Filament\Support\prepare_inherited_attributes($attributes)
                                 ->merge($getExtraAttributes(), escape: false)
@@ -272,7 +278,7 @@
                     @forelse ($sortedOptions as $value => $label)
                         <div
                                 wire:key="{{ $this->getId() }}.{{ $statePath }}.{{ $field::class }}.options.{{ $value }}"
-                                :style="(state || []).map(String).includes('{{ addslashes((string)$value) }}') ? 'order: -1;' : 'order: 0;'"
+                                :style="(state || []).map(String).includes('{{ addslashes((string)$value) }}') ? 'order: -1; margin-bottom: 0.5rem;' : 'order: 0; margin-bottom: 0.5rem;'"
                                 @if ($isSearchable && !$hasSearchCallback())
                                     x-show="
                                     $el
@@ -289,7 +295,7 @@
                                     'break-inside-avoid pt-4' => $gridDirection === 'column',
                                 ])
                         >
-                            <label class="fi-fo-checkbox-list-option-label flex w-full items-center gap-x-3 cursor-pointer">
+                            <label class="fi-fo-checkbox-list-option-label flex w-full items-center gap-x-3 cursor-pointer" style="display: flex; align-items: center; width: 100%; gap: 0.75rem; cursor: pointer;">
                                 <x-filament::input.checkbox
                                         :valid="! $errors->has($statePath)"
                                         :attributes="
