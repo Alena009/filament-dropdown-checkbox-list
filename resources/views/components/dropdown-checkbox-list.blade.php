@@ -6,6 +6,25 @@
     $statePath = $getStatePath();
 @endphp
 
+<style>
+    .dropdown-checkbox-list-search-container {
+        margin-top: -1rem !important;
+        margin-left: -1rem !important;
+        margin-right: -1rem !important;
+        margin-bottom: 0.5rem !important;
+        border-bottom: 1px solid #e5e7eb !important;
+    }
+    .dark .dropdown-checkbox-list-search-container {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+    }
+    .dropdown-checkbox-list-search-input {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+        padding-top: 0.75rem !important;
+        padding-bottom: 0.75rem !important;
+    }
+</style>
+
 <x-dynamic-component :component="$getFieldWrapperView()" :field="$field">
     <div
             x-data="{
@@ -157,23 +176,16 @@
             ">
                 @if (! $isDisabled)
                     @if ($isSearchable)
-                        <x-filament::input.wrapper
-                                inline-prefix
-                                prefix-icon="heroicon-m-magnifying-glass"
-                                prefix-icon-alias="forms:components.checkbox-list.search-field"
-                                class="mb-4"
-                                style="margin-bottom: 1rem;"
-                        >
+                        <div class="dropdown-checkbox-list-search-container">
                             @if ($hasSearchCallback())
                                 <x-filament::input
-                                        inline-prefix
                                         :placeholder="$getSearchPrompt()"
                                         type="search"
                                         wire:model.live.debounce.500ms="{{ $hasDropdownSearch() ? 'filterSearches.' . $getStatePath() : $getStatePath() . '_search' }}"
+                                        class="dropdown-checkbox-list-search-input"
                                 />
                             @else
                                 <x-filament::input
-                                        inline-prefix
                                         :placeholder="$getSearchPrompt()"
                                         type="search"
                                         :attributes="
@@ -183,9 +195,10 @@
                                             ])
                                         )
                                     "
+                                        class="dropdown-checkbox-list-search-input"
                                 />
                             @endif
-                        </x-filament::input.wrapper>
+                        </div>
                     @endif
 
                     @if ($isBulkToggleable && count($getOptions()))
