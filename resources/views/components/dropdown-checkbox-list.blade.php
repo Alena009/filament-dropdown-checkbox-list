@@ -59,7 +59,7 @@
 
             checkIfAllCheckboxesAreChecked: function () {
                 let enabledCheckboxes = []
-                this.visibleCheckboxListOptions.forEach((label) => {
+                this.checkboxListOptions.forEach((label) => {
                     let cb = label.querySelector('input[type=checkbox]')
                     if (cb && !cb.disabled) enabledCheckboxes.push(cb)
                 })
@@ -72,7 +72,7 @@
             toggleAllCheckboxes: function () {
                 let checkState = ! this.areAllCheckboxesChecked
 
-                this.visibleCheckboxListOptions.forEach((checkboxLabel) => {
+                this.checkboxListOptions.forEach((checkboxLabel) => {
                     let checkbox = checkboxLabel.querySelector('input[type=checkbox]')
 
                     if (checkbox && !checkbox.disabled && checkbox.checked !== checkState) {
@@ -168,7 +168,16 @@
                         panel.style.setProperty('max-width', 'none', 'important');
                     }
                 };
-                $watch('isOpen', (val) => { if (val) setTimeout(updateWidth, 10); });
+                $watch('isOpen', (val) => {
+                    if (val) {
+                        setTimeout(updateWidth, 10);
+                    } else {
+                        this.search = '';
+                        @if ($hasSearchCallback())
+                            $wire.set('{{ $hasDropdownSearch() ? "filterSearches." . $getStatePath() : $getStatePath() . "_search" }}', '');
+                        @endif
+                    }
+                });
                 const triggerEl = document.getElementById('{{ $this->getId() }}-{{ $getStatePath() }}-trigger');
                 if (triggerEl) {
                     new ResizeObserver(updateWidth).observe(triggerEl);
