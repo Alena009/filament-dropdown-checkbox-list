@@ -4,6 +4,7 @@
     $isDisabled = $isDisabled();
     $isSearchable = $isSearchable();
     $statePath = $getStatePath();
+    $usesServerSideSearch = $hasSearchCallback();
 @endphp
 
 <style>
@@ -26,107 +27,24 @@
 </style>
 
 <x-dynamic-component :component="$getFieldWrapperView()" :field="$field">
-    <div
-            x-data="{
-            areAllCheckboxesChecked: false,
-            checkboxListOptions: [],
-            search: '',
-            visibleCheckboxListOptions: [],
-            state: $wire.$entangle('{{ $statePath }}'),
-            optionsLabels: @js(collect($getOptions())->mapWithKeys(fn ($label, $value) => [(string)$value => strip_tags((string)$label)])),
-
-            init() {
-                this.checkboxListOptions = Array.from($root.querySelectorAll('.fi-fo-checkbox-list-option-label'))
-                this.updateVisibleCheckboxListOptions()
-                this.$nextTick(() => { this.checkIfAllCheckboxesAreChecked() })
-
-                Livewire.hook('commit', ({ component, commit, succeed, fail, respond }) => {
-                    succeed(({ snapshot, effect }) => {
-                        this.$nextTick(() => {
-                            if (component.id !== @js($this->getId())) return
-                            this.checkboxListOptions = Array.from($root.querySelectorAll('.fi-fo-checkbox-list-option-label'))
-                            this.updateVisibleCheckboxListOptions()
-                            this.checkIfAllCheckboxesAreChecked()
-                        })
-                    })
-                })
-
-                this.$watch('search', () => {
-                    this.updateVisibleCheckboxListOptions()
-                    this.checkIfAllCheckboxesAreChecked()
-                })
-            },
-
-            checkIfAllCheckboxesAreChecked: function () {
-                let enabledCheckboxes = []
-                this.checkboxListOptions.forEach((label) => {
-                    let cb = label.querySelector('input[type=checkbox]')
-                    if (cb && !cb.disabled) enabledCheckboxes.push(cb)
-                })
-
-                this.areAllCheckboxesChecked =
-                    enabledCheckboxes.length > 0 &&
-                    enabledCheckboxes.every(cb => cb.checked)
-            },
-
-            toggleAllCheckboxes: function () {
-                let checkState = ! this.areAllCheckboxesChecked
-
-                this.checkboxListOptions.forEach((checkboxLabel) => {
-                    let checkbox = checkboxLabel.querySelector('input[type=checkbox]')
-
-                    if (checkbox && !checkbox.disabled && checkbox.checked !== checkState) {
-                        checkbox.checked = checkState
-                        checkbox.dispatchEvent(new Event('change'))
-                    }
-                })
-
-                this.areAllCheckboxesChecked = checkState
-            },
-
-            updateVisibleCheckboxListOptions: function () {
-                @if ($hasSearchCallback())
-                    this.visibleCheckboxListOptions = this.checkboxListOptions;
-                @else
-                    this.visibleCheckboxListOptions = this.checkboxListOptions.filter(
-                        (checkboxListItem) => {
-                            if (checkboxListItem.querySelector('.fi-fo-checkbox-list-option-label')?.innerText.toLowerCase().includes(this.search.toLowerCase())) {
-                                return true
-                            }
-                            return checkboxListItem.querySelector('.fi-fo-checkbox-list-option-description')?.innerText.toLowerCase().includes(this.search.toLowerCase())
-                        },
-                    )
-                @endif
-            },
-
-            removeItem: function (itemToRemove) {
-                // Find the specific checkbox inside this component
-                let checkbox = null
-                this.checkboxListOptions.forEach((label) => {
-                    let input = label.querySelector('input[type=checkbox]')
-                    if (input && input.value == itemToRemove) {
-                        checkbox = input
-                    }
-                })
-
-                if (checkbox && !checkbox.disabled) {
-                    checkbox.checked = false
-                    checkbox.dispatchEvent(new Event('change'))
-                } else {
-                    // Fallback
-                    this.state = this.state.filter((item) => item != itemToRemove)
-                }
-
-                this.checkIfAllCheckboxesAreChecked()
-            },
-        }"
-    >
+    <div wire:key="{{ $this->getId() }}.{{ $statePath }}.{{ $field::class }}.container">
         <x-filament::dropdown
+                wire:key="{{ $this->getId() }}.{{ $statePath }}.{{ $field::class }}.dropdown"
                 max-height="400px"
                 placement="bottom-start"
         >
             <x-slot name="trigger">
-                <div id="{{ $this->getId() }}-{{ $getStatePath() }}-trigger" style="width: 100%;">
+                <div
+                        id="{{ $this->getId() }}-{{ $getStatePath() }}-trigger"
+                        style="width: 100%;"
+                        x-data="{
+                            state: $wire.$entangle('{{ $statePath }}'),
+                            optionsLabels: @js(collect($getOptions())->mapWithKeys(fn ($label, $value) => [(string)$value => strip_tags((string)$label)])),
+                            removeItem(itemToRemove) {
+                                this.state = (this.state ?? []).filter((item) => String(item) !== String(itemToRemove))
+                            },
+                        }"
+                >
                 <x-filament::input.wrapper :disabled="$isDisabled" :valid="! $errors->has($statePath)" class="cursor-pointer" style="width: 100%;">
                     <div
                             class="outline-none"
@@ -158,35 +76,236 @@
                 </div>
             </x-slot>
 
-            <div class="p-4" style="padding: 1rem;" x-on:click.stop x-init="
-                const updateWidth = () => {
-                    const trigger = document.getElementById('{{ $this->getId() }}-{{ $getStatePath() }}-trigger');
-                    const panel = $el.closest('.fi-dropdown-panel') || $el.closest('div[x-ref=\'panel\']');
-                    if (trigger && panel) {
-                        panel.style.setProperty('width', trigger.offsetWidth + 'px', 'important');
-                        panel.style.setProperty('min-width', trigger.offsetWidth + 'px', 'important');
-                        panel.style.setProperty('max-width', 'none', 'important');
+            <div
+                wire:key="{{ $this->getId() }}.{{ $statePath }}.{{ $field::class }}.panel"
+                class="p-4"
+                style="padding: 1rem;"
+                @if (! $usesServerSideSearch) wire:ignore @endif
+                @if (! $usesServerSideSearch)
+                x-data="{
+                    areAllCheckboxesChecked: false,
+                    checkboxListOptions: [],
+                    search: '',
+                    visibleCheckboxListOptions: [],
+                    state: $wire.$entangle('{{ $statePath }}'),
+
+                    init() {
+                        this.refreshCheckboxListOptions()
+
+                        this.$watch('search', () => {
+                            this.updateVisibleCheckboxListOptions()
+                            this.checkIfAllCheckboxesAreChecked()
+                        })
+
+                        this.$watch('state', () => {
+                            this.updateVisibleCheckboxListOptions()
+                            this.checkIfAllCheckboxesAreChecked()
+                        })
+                    },
+
+                    optionWrapperStyle(value, el) {
+                        let style = (this.state ?? []).map(String).includes(String(value))
+                            ? 'order: -1; margin-bottom: 0.5rem;'
+                            : 'order: 0; margin-bottom: 0.5rem;'
+
+                        if (! this.matchesSearch(el)) {
+                            style += ' display: none;'
+                        }
+
+                        return style
+                    },
+
+                    refreshCheckboxListOptions() {
+                        this.checkboxListOptions = Array.from(this.$root.querySelectorAll('.fi-fo-checkbox-list-option-wrapper'))
+                        this.updateVisibleCheckboxListOptions()
+                        this.$nextTick(() => { this.checkIfAllCheckboxesAreChecked() })
+                    },
+
+                    checkIfAllCheckboxesAreChecked() {
+                        let enabledCheckboxes = []
+
+                        this.checkboxListOptions.forEach((wrapper) => {
+                            if (! this.isOptionVisible(wrapper)) {
+                                return
+                            }
+
+                            let cb = wrapper.querySelector('input[type=checkbox]')
+
+                            if (cb && ! cb.disabled) {
+                                enabledCheckboxes.push(cb)
+                            }
+                        })
+
+                        this.areAllCheckboxesChecked =
+                            enabledCheckboxes.length > 0 &&
+                            enabledCheckboxes.every(cb => cb.checked)
+                    },
+
+                    isOptionVisible(wrapper) {
+                        return this.matchesSearch(wrapper)
+                    },
+
+                    toggleAllCheckboxes() {
+                        let checkState = ! this.areAllCheckboxesChecked
+                        let current = [...(this.state ?? [])]
+
+                        this.checkboxListOptions.forEach((wrapper) => {
+                            if (! this.isOptionVisible(wrapper)) {
+                                return
+                            }
+
+                            let checkbox = wrapper.querySelector('input[type=checkbox]')
+
+                            if (! checkbox || checkbox.disabled) {
+                                return
+                            }
+
+                            let value = checkbox.value
+                            let hasValue = current.map(String).includes(String(value))
+
+                            if (checkState && ! hasValue) {
+                                current.push(value)
+                            }
+
+                            if (! checkState && hasValue) {
+                                current = current.filter((item) => String(item) !== String(value))
+                            }
+                        })
+
+                        this.state = current
+                        this.areAllCheckboxesChecked = checkState
+                    },
+
+                    toggleOption(value, checked) {
+                        let current = [...(this.state ?? [])]
+
+                        if (checked) {
+                            if (! current.map(String).includes(String(value))) {
+                                current.push(value)
+                            }
+                        } else {
+                            current = current.filter((item) => String(item) !== String(value))
+                        }
+
+                        this.state = current
+                        this.checkIfAllCheckboxesAreChecked()
+                    },
+
+                    matchesSearch(checkboxListItem) {
+                        let checkbox = checkboxListItem.querySelector('input[type=checkbox]')
+                        let value = checkbox?.value
+
+                        if (value !== undefined && (this.state ?? []).map(String).includes(String(value))) {
+                            return true
+                        }
+
+                        if (! this.search) {
+                            return true
+                        }
+
+                        let term = this.search.toLowerCase()
+
+                        return (
+                            checkboxListItem.querySelector('.fi-fo-checkbox-list-option-label')?.innerText.toLowerCase().includes(term) ||
+                            checkboxListItem.querySelector('.fi-fo-checkbox-list-option-description')?.innerText.toLowerCase().includes(term)
+                        )
+                    },
+
+                    updateVisibleCheckboxListOptions() {
+                        this.visibleCheckboxListOptions = this.checkboxListOptions.filter(
+                            (checkboxListItem) => this.matchesSearch(checkboxListItem),
+                        )
+                    },
+                }"
+                @else
+                x-data="{
+                    areAllCheckboxesChecked: false,
+                    checkboxListOptions: [],
+                    visibleCheckboxListOptions: [],
+                    state: $wire.$entangle('{{ $statePath }}'),
+
+                    init() {
+                        const rootEl = $root
+
+                        this.refreshCheckboxListOptions()
+
+                        Livewire.hook('commit', ({ component, commit, succeed, fail, respond }) => {
+                            succeed(({ snapshot, effect }) => {
+                                this.$nextTick(() => {
+                                    if (component.el && ! component.el.contains(rootEl)) return
+                                    this.refreshCheckboxListOptions()
+                                })
+                            })
+                        })
+                    },
+
+                    refreshCheckboxListOptions() {
+                        this.checkboxListOptions = Array.from(this.$root.querySelectorAll('.fi-fo-checkbox-list-option-wrapper'))
+                        this.visibleCheckboxListOptions = this.checkboxListOptions
+                        this.$nextTick(() => { this.checkIfAllCheckboxesAreChecked() })
+                    },
+
+                    checkIfAllCheckboxesAreChecked() {
+                        let enabledCheckboxes = []
+
+                        this.checkboxListOptions.forEach((wrapper) => {
+                            let cb = wrapper.querySelector('input[type=checkbox]')
+
+                            if (cb && ! cb.disabled) {
+                                enabledCheckboxes.push(cb)
+                            }
+                        })
+
+                        this.areAllCheckboxesChecked =
+                            enabledCheckboxes.length > 0 &&
+                            enabledCheckboxes.every(cb => cb.checked)
+                    },
+
+                    toggleAllCheckboxes() {
+                        let checkState = ! this.areAllCheckboxesChecked
+
+                        this.checkboxListOptions.forEach((checkboxLabel) => {
+                            let checkbox = checkboxLabel.querySelector('input[type=checkbox]')
+
+                            if (checkbox && ! checkbox.disabled && checkbox.checked !== checkState) {
+                                checkbox.checked = checkState
+                                checkbox.dispatchEvent(new Event('change', { bubbles: true }))
+                            }
+                        })
+
+                        this.areAllCheckboxesChecked = checkState
+                    },
+                }"
+                @endif
+                x-on:click.stop
+                x-on:keydown.escape.window="
+                    @if (! $usesServerSideSearch)
+                        search = '';
+                    @else
+                        $wire.set('{{ $hasDropdownSearch() ? 'filterSearches.' . $getStatePath() : $getStatePath() . '_search' }}', '');
+                    @endif
+                "
+                x-init="
+                    const updateWidth = () => {
+                        const trigger = document.getElementById('{{ $this->getId() }}-{{ $getStatePath() }}-trigger');
+                        const panel = $el.closest('.fi-dropdown-panel') || $el.closest('div[x-ref=\'panel\']');
+                        if (trigger && panel) {
+                            panel.style.setProperty('width', trigger.offsetWidth + 'px', 'important');
+                            panel.style.setProperty('min-width', trigger.offsetWidth + 'px', 'important');
+                            panel.style.setProperty('max-width', 'none', 'important');
+                        }
+                    };
+                    const triggerEl = document.getElementById('{{ $this->getId() }}-{{ $getStatePath() }}-trigger');
+                    if (triggerEl) {
+                        new ResizeObserver(updateWidth).observe(triggerEl);
                     }
-                };
-                $watch('isOpen', (val) => {
-                    if (val) {
-                        setTimeout(updateWidth, 10);
-                    } else {
-                        this.search = '';
-                        @if ($hasSearchCallback())
-                            $wire.set('{{ $hasDropdownSearch() ? "filterSearches." . $getStatePath() : $getStatePath() . "_search" }}', '');
-                        @endif
-                    }
-                });
-                const triggerEl = document.getElementById('{{ $this->getId() }}-{{ $getStatePath() }}-trigger');
-                if (triggerEl) {
-                    new ResizeObserver(updateWidth).observe(triggerEl);
-                }
-            ">
+                    setTimeout(updateWidth, 10);
+                "
+            >
                 @if (! $isDisabled)
                     @if ($isSearchable)
                         <div class="dropdown-checkbox-list-search-container">
-                            @if ($hasSearchCallback())
+                            @if ($usesServerSideSearch)
                                 <x-filament::input
                                         :placeholder="$getSearchPrompt()"
                                         type="search"
@@ -215,13 +334,11 @@
                                 x-cloak
                                 class="mb-4 flex gap-x-4 text-sm font-medium text-primary-600 dark:text-primary-400"
                                 style="display: flex; gap: 1rem; margin-bottom: 1rem;"
-                                wire:key="{{ $this->getId() }}.{{ $getStatePath() }}.{{ $field::class }}.actions"
                         >
                             <span
                                     class="cursor-pointer hover:underline"
                                     x-show="! areAllCheckboxesChecked"
                                     x-on:click="toggleAllCheckboxes()"
-                                    wire:key="{{ $this->getId() }}.{{ $statePath }}.{{ $field::class }}.actions.select-all"
                             >
                                 {{ $getAction('selectAll')?->getLabel() ?? __('dropdown-checkbox-list::messages.select_all') }}
                             </span>
@@ -230,7 +347,6 @@
                                     class="cursor-pointer hover:underline"
                                     x-show="areAllCheckboxesChecked"
                                     x-on:click="toggleAllCheckboxes()"
-                                    wire:key="{{ $this->getId() }}.{{ $statePath }}.{{ $field::class }}.actions.deselect-all"
                             >
                                 {{ $getAction('deselectAll')?->getLabel() ?? __('dropdown-checkbox-list::messages.deselect_all') }}
                             </span>
@@ -246,7 +362,7 @@
                     lg:columns-1 lg:columns-2 lg:columns-3 lg:columns-4 lg:columns-5 lg:columns-6
                     xl:columns-1 xl:columns-2 xl:columns-3 xl:columns-4 xl:columns-5 xl:columns-6
                     2xl:columns-1 2xl:columns-2 2xl:columns-3 2xl:columns-4 2xl:columns-5 2xl:columns-6
-                    
+
                     grid-cols-1 grid-cols-2 grid-cols-3 grid-cols-4 grid-cols-5 grid-cols-6
                     sm:grid-cols-1 sm:grid-cols-2 sm:grid-cols-3 sm:grid-cols-4 sm:grid-cols-5 sm:grid-cols-6
                     md:grid-cols-1 md:grid-cols-2 md:grid-cols-3 md:grid-cols-4 md:grid-cols-5 md:grid-cols-6
@@ -280,41 +396,36 @@
                                 ])
                         }}
                 >
-                    @php
-                        $options = $getOptions();
-                        $currentState = is_array($getState()) ? $getState() : [];
+                    @forelse ($getOptions() as $value => $label)
+                        @php
+                            $stringValue = addslashes((string) $value);
 
-                        $selectedOptions = [];
-                        $unselectedOptions = [];
+                            $checkboxAttributes = [
+                                'disabled' => $isDisabled || $isOptionDisabled($value, $label),
+                                'value' => $value,
+                                'wire:loading.attr' => 'disabled',
+                            ];
 
-                        foreach ($options as $val => $lbl) {
-                            if (in_array((string)$val, array_map('strval', $currentState))) {
-                                $selectedOptions[$val] = $lbl;
+                            if ($usesServerSideSearch) {
+                                $checkboxAttributes[$applyStateBindingModifiers('wire:model')] = $statePath;
+                                $checkboxAttributes['x-on:change'] = $isBulkToggleable ? 'checkIfAllCheckboxesAreChecked()' : null;
                             } else {
-                                $unselectedOptions[$val] = $lbl;
+                                $checkboxAttributes['x-bind:checked'] = "(state ?? []).map(String).includes('{$stringValue}')";
+                                $checkboxAttributes['x-on:change'] = "toggleOption('{$stringValue}', \$event.target.checked)";
                             }
-                        }
-
-                        $sortedOptions = $selectedOptions + $unselectedOptions;
-                    @endphp
-                    @forelse ($sortedOptions as $value => $label)
+                        @endphp
                         <div
-                                wire:key="{{ $this->getId() }}.{{ $statePath }}.{{ $field::class }}.options.{{ $value }}"
-                                :style="(state || []).map(String).includes('{{ addslashes((string)$value) }}') ? 'order: -1; margin-bottom: 0.5rem;' : 'order: 0; margin-bottom: 0.5rem;'"
-                                @if ($isSearchable && !$hasSearchCallback())
-                                    x-show="
-                                    $el
-                                        .querySelector('.fi-fo-checkbox-list-option-label')
-                                        ?.innerText.toLowerCase()
-                                        .includes(search.toLowerCase()) ||
-                                        $el
-                                            .querySelector('.fi-fo-checkbox-list-option-description')
-                                            ?.innerText.toLowerCase()
-                                            .includes(search.toLowerCase())
-                                "
+                                @if ($usesServerSideSearch)
+                                    wire:key="{{ $this->getId() }}.{{ $statePath }}.{{ $field::class }}.options.{{ $value }}"
+                                @endif
+                                @if ($usesServerSideSearch)
+                                    :style="(state ?? []).map(String).includes('{{ $stringValue }}') ? 'order: -1; margin-bottom: 0.5rem;' : 'order: 0; margin-bottom: 0.5rem;'"
+                                @else
+                                    :style="optionWrapperStyle('{{ $stringValue }}', $el)"
                                 @endif
                                 @class([
                                     'break-inside-avoid pt-4' => $gridDirection === 'column',
+                                    'fi-fo-checkbox-list-option-wrapper',
                                 ])
                         >
                             <label class="fi-fo-checkbox-list-option-label flex w-full items-center gap-x-3 cursor-pointer" style="display: flex; align-items: center; width: 100%; gap: 0.75rem; cursor: pointer;">
@@ -322,13 +433,7 @@
                                         :valid="! $errors->has($statePath)"
                                         :attributes="
                                         \Filament\Support\prepare_inherited_attributes($getExtraInputAttributeBag())
-                                            ->merge([
-                                                'disabled' => $isDisabled || $isOptionDisabled($value, $label),
-                                                'value' => $value,
-                                                'wire:loading.attr' => 'disabled',
-                                                $applyStateBindingModifiers('wire:model') => $statePath,
-                                                'x-on:change' => $isBulkToggleable ? 'checkIfAllCheckboxesAreChecked()' : null,
-                                            ], escape: false)
+                                            ->merge($checkboxAttributes, escape: false)
                                             ->class(['mt-0'])
                                     "
                                 />
@@ -353,14 +458,16 @@
                             </label>
                         </div>
                     @empty
-                        <div wire:key="{{ $this->getId() }}.{{ $statePath }}.{{ $field::class }}.empty"></div>
+                        @if ($usesServerSideSearch)
+                            <div wire:key="{{ $this->getId() }}.{{ $statePath }}.{{ $field::class }}.empty"></div>
+                        @endif
                     @endforelse
                 </div>
 
                 @if ($isSearchable)
                     <div
                             x-cloak
-                            @if ($hasSearchCallback())
+                            @if ($usesServerSideSearch)
                                 x-show="! visibleCheckboxListOptions.length && @js(property_exists($getLivewire(), 'filterSearches') ? data_get($getLivewire()->filterSearches ?? [], $getStatePath(), '') : data_get($getLivewire(), $getStatePath() . '_search', '')) !== ''"
                             @else
                                 x-show="search && ! visibleCheckboxListOptions.length"
