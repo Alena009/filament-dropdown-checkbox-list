@@ -5,6 +5,16 @@
     $isSearchable = $isSearchable();
     $statePath = $getStatePath();
     $usesServerSideSearch = $hasSearchCallback();
+
+    $initialCollapsedGroups = [];
+    if ($hasGroupedOptions()) {
+        $collapseGroupsByDefault = $shouldCollapseGroupsByDefault();
+        $groupIndex = 0;
+        foreach ($getGroupedOptions() as $ignoredGroupChildren) {
+            $initialCollapsedGroups['g' . $groupIndex] = $collapseGroupsByDefault;
+            $groupIndex++;
+        }
+    }
 @endphp
 
 <style>
@@ -34,10 +44,23 @@
         padding-bottom: 0.5rem;
         margin-bottom: 0.5rem;
         border-bottom: 1px solid #e5e7eb;
-        cursor: pointer;
     }
     .dark .dropdown-checkbox-list-group-header {
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .dropdown-checkbox-list-group-title {
+        display: flex;
+        flex: 1 1 auto;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        cursor: pointer;
+        user-select: none;
+        min-width: 0;
+    }
+    .dropdown-checkbox-list-group-chevron {
+        flex-shrink: 0;
+        transition: transform 0.15s ease;
     }
     .dropdown-checkbox-list-group-children {
         display: grid;
@@ -107,6 +130,7 @@
                     checkboxListOptions: [],
                     search: '',
                     visibleCheckboxListOptions: [],
+                    collapsedGroups: @js($initialCollapsedGroups),
                     state: $wire.$entangle('{{ $statePath }}'),
 
                     init() {
@@ -256,6 +280,14 @@
 
                             return this.matchesSearch(wrapper)
                         })
+                    },
+
+                    isGroupCollapsed(key) {
+                        return ! this.search && !! this.collapsedGroups[key]
+                    },
+
+                    toggleGroupCollapse(key) {
+                        this.collapsedGroups[key] = ! this.collapsedGroups[key]
                     },
 
                     matchesSearch(checkboxListItem) {
@@ -461,36 +493,54 @@
                                 $groupValues = array_values(array_map(fn ($v) => (string) $v, array_keys($groupChildren)));
                                 $groupLabelText = strip_tags((string) $groupLabel);
                                 $groupValuesJs = '[' . implode(',', array_map(fn ($v) => "'" . addslashes($v) . "'", $groupValues)) . ']';
+                                $groupKey = 'g' . $loop->index;
                             @endphp
                             <div
                                     class="dropdown-checkbox-list-group"
                                     @if ($isSearchable) x-show="groupHasVisibleChildren({{ $groupValuesJs }})" @endif
                             >
-                                <label class="dropdown-checkbox-list-group-header">
-                                    <x-filament::input.checkbox
-                                            :valid="! $errors->has($statePath)"
-                                            :attributes="
-                                            \Filament\Support\prepare_inherited_attributes(
-                                                new \Illuminate\View\ComponentAttributeBag([])
-                                            )
-                                                ->merge([
-                                                    'disabled' => $isDisabled,
-                                                    'x-bind:checked' => 'groupChecked(' . $groupValuesJs . ')',
-                                                    'x-effect' => '$el.indeterminate = groupIndeterminate(' . $groupValuesJs . ')',
-                                                    'x-on:change' => 'toggleGroup(' . $groupValuesJs . ', $event.target.checked)',
-                                                ], escape: false)
-                                                ->class(['mt-0'])"
-                                    />
-                                    <span class="block w-full overflow-hidden break-words font-semibold text-gray-950 dark:text-white">
-                                        @if ($isHtmlAllowed())
-                                            {!! $groupLabel !!}
-                                        @else
-                                            {{ $groupLabel }}
-                                        @endif
-                                    </span>
-                                </label>
+                                <div class="dropdown-checkbox-list-group-header">
+                                    <label class="dropdown-checkbox-list-group-checkbox" style="display: flex; align-items: center; cursor: pointer;">
+                                        <x-filament::input.checkbox
+                                                :valid="! $errors->has($statePath)"
+                                                :attributes="
+                                                \Filament\Support\prepare_inherited_attributes(
+                                                    new \Illuminate\View\ComponentAttributeBag([])
+                                                )
+                                                    ->merge([
+                                                        'disabled' => $isDisabled,
+                                                        'x-bind:checked' => 'groupChecked(' . $groupValuesJs . ')',
+                                                        'x-effect' => '$el.indeterminate = groupIndeterminate(' . $groupValuesJs . ')',
+                                                        'x-on:change' => 'toggleGroup(' . $groupValuesJs . ', $event.target.checked)',
+                                                    ], escape: false)
+                                                    ->class(['mt-0'])"
+                                        />
+                                    </label>
 
-                                <div class="dropdown-checkbox-list-group-children">
+                                    <div
+                                            class="dropdown-checkbox-list-group-title"
+                                            x-on:click="toggleGroupCollapse('{{ $groupKey }}')"
+                                    >
+                                        <span class="block w-full overflow-hidden break-words font-semibold text-gray-950 dark:text-white">
+                                            @if ($isHtmlAllowed())
+                                                {!! $groupLabel !!}
+                                            @else
+                                                {{ $groupLabel }}
+                                            @endif
+                                        </span>
+
+                                        <x-filament::icon
+                                                icon="heroicon-m-chevron-down"
+                                                class="dropdown-checkbox-list-group-chevron h-5 w-5 text-gray-400 dark:text-gray-500"
+                                                x-bind:style="isGroupCollapsed('{{ $groupKey }}') ? 'transform: rotate(-90deg);' : 'transform: rotate(0deg);'"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div
+                                        class="dropdown-checkbox-list-group-children"
+                                        x-show="! isGroupCollapsed('{{ $groupKey }}')"
+                                >
                                     @foreach ($groupChildren as $value => $label)
                                         @php
                                             $stringValue = addslashes((string) $value);

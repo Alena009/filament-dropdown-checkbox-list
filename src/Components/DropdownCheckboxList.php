@@ -17,6 +17,7 @@ class DropdownCheckboxList extends CheckboxList
     protected int|\Closure $optionsLimit = 50;
     protected int|\Closure $maxItemsShown = 50;
     protected array|\Closure|null $groupedOptions = null;
+    protected bool|\Closure $collapseGroupsByDefault = false;
 
     protected function setUp(): void
     {
@@ -65,6 +66,22 @@ class DropdownCheckboxList extends CheckboxList
     public function hasGroupedOptions(): bool
     {
         return $this->groupedOptions !== null;
+    }
+
+    /**
+     * Render each group collapsed by default. Groups always remain collapsible
+     * regardless of this setting.
+     */
+    public function collapseGroupsByDefault(bool|\Closure $condition = true): static
+    {
+        $this->collapseGroupsByDefault = $condition;
+
+        return $this;
+    }
+
+    public function shouldCollapseGroupsByDefault(): bool
+    {
+        return (bool) $this->evaluate($this->collapseGroupsByDefault);
     }
 
     public function getGroupedOptions(): array

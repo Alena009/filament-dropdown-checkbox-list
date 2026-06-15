@@ -10,7 +10,7 @@ Wraps a standard `CheckboxList` inside a dropdown trigger with badge-style selec
 - Server-side search via a callback
 - Client-side search (default, no callback needed)
 - Selected options always visible in the list regardless of search query
-- Grouped options with a per-group checkbox that toggles all of its children
+- Grouped options with a per-group checkbox that toggles all of its children, with collapsible groups
 - Bulk toggle (select all / deselect all) scoped to visible options
 - Options limit to prevent rendering thousands of items
 - Full dark mode support
@@ -86,6 +86,16 @@ The state is still a flat array of the selected child values (e.g.
 matches both child labels and group labels (typing a group name reveals the whole
 group). Grouped options are intended for the default client-side mode and ignore
 `optionsLimit`.
+
+Groups are collapsible: clicking a group's title (or its chevron) toggles its child
+list, while the group checkbox keeps toggling the selection. An active search query
+temporarily expands every matching group. To render groups collapsed initially:
+
+```php
+DropdownCheckboxList::make('permissions')
+    ->groupedOptions([...])
+    ->collapseGroupsByDefault()
+```
 
 ### Options limit
 
