@@ -16,6 +16,7 @@ class DropdownCheckboxList extends CheckboxList
     protected ?\Closure $selectedLabelsCallback = null;
     protected int|\Closure $optionsLimit = 50;
     protected int|\Closure $maxItemsShown = 50;
+    protected array|\Closure|null $groupedOptions = null;
 
     protected function setUp(): void
     {
@@ -39,6 +40,61 @@ class DropdownCheckboxList extends CheckboxList
     public function hasSearchCallback(): bool
     {
         return $this->searchCallback !== null;
+    }
+
+    /**
+     * Render options split into groups. Each group has its own checkbox that
+     * toggles every child option at once.
+     *
+     * Expected structure:
+     * [
+     *     'Group label' => [
+     *         'value-1' => 'Label 1',
+     *         'value-2' => 'Label 2',
+     *     ],
+     *     ...
+     * ]
+     */
+    public function groupedOptions(array|\Closure $groups): static
+    {
+        $this->groupedOptions = $groups;
+
+        return $this;
+    }
+
+    public function hasGroupedOptions(): bool
+    {
+        return $this->groupedOptions !== null;
+    }
+
+    public function getGroupedOptions(): array
+    {
+        $groups = $this->evaluate($this->groupedOptions) ?? [];
+
+        $normalized = [];
+
+        foreach ($groups as $groupLabel => $children) {
+            if (! is_array($children)) {
+                continue;
+            }
+
+            $normalized[$groupLabel] = $children;
+        }
+
+        return $normalized;
+    }
+
+    protected function getFlattenedGroupedOptions(): array
+    {
+        $flat = [];
+
+        foreach ($this->getGroupedOptions() as $children) {
+            foreach ($children as $value => $label) {
+                $flat[$value] = $label;
+            }
+        }
+
+        return $flat;
     }
 
     public function optionsLimit(int|\Closure $limit): static
@@ -84,6 +140,10 @@ class DropdownCheckboxList extends CheckboxList
 
     public function getOptions(): array
     {
+        if ($this->hasGroupedOptions()) {
+            return $this->getFlattenedGroupedOptions();
+        }
+
         if ($this->searchCallback) {
             $options = $this->evaluate($this->searchCallback, [
                 'search' => $this->getSearchValue(),

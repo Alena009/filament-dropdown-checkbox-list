@@ -24,6 +24,26 @@
         padding-top: 0.75rem !important;
         padding-bottom: 0.75rem !important;
     }
+    .dropdown-checkbox-list-group + .dropdown-checkbox-list-group {
+        margin-top: 0.75rem;
+    }
+    .dropdown-checkbox-list-group-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding-bottom: 0.5rem;
+        margin-bottom: 0.5rem;
+        border-bottom: 1px solid #e5e7eb;
+        cursor: pointer;
+    }
+    .dark .dropdown-checkbox-list-group-header {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .dropdown-checkbox-list-group-children {
+        display: grid;
+        gap: 0.5rem;
+        padding-left: 1.75rem;
+    }
 </style>
 
 <x-dynamic-component :component="$getFieldWrapperView()" :field="$field">
@@ -191,6 +211,53 @@
                         this.checkIfAllCheckboxesAreChecked()
                     },
 
+                    groupChecked(values) {
+                        let selected = (this.state ?? []).map(String)
+
+                        return values.length > 0 && values.every((v) => selected.includes(String(v)))
+                    },
+
+                    groupIndeterminate(values) {
+                        let selected = (this.state ?? []).map(String)
+                        let selectedInGroup = values.filter((v) => selected.includes(String(v)))
+
+                        return selectedInGroup.length > 0 && selectedInGroup.length < values.length
+                    },
+
+                    toggleGroup(values, checked) {
+                        let current = [...(this.state ?? [])]
+                        let groupValues = values.map(String)
+
+                        if (checked) {
+                            groupValues.forEach((v) => {
+                                if (! current.map(String).includes(v)) {
+                                    current.push(v)
+                                }
+                            })
+                        } else {
+                            current = current.filter((item) => ! groupValues.includes(String(item)))
+                        }
+
+                        this.state = current
+                        this.checkIfAllCheckboxesAreChecked()
+                    },
+
+                    groupHasVisibleChildren(values) {
+                        void this.search
+
+                        let groupValues = values.map(String)
+
+                        return this.checkboxListOptions.some((wrapper) => {
+                            let checkbox = wrapper.querySelector('input[type=checkbox]')
+
+                            if (! checkbox || ! groupValues.includes(String(checkbox.value))) {
+                                return false
+                            }
+
+                            return this.matchesSearch(wrapper)
+                        })
+                    },
+
                     matchesSearch(checkboxListItem) {
                         let checkbox = checkboxListItem.querySelector('input[type=checkbox]')
                         let value = checkbox?.value
@@ -204,6 +271,12 @@
                         }
 
                         let term = this.search.toLowerCase()
+
+                        let groupLabel = checkboxListItem.dataset.groupLabel
+
+                        if (groupLabel && groupLabel.toLowerCase().includes(term)) {
+                            return true
+                        }
 
                         return (
                             checkboxListItem.querySelector('.fi-fo-checkbox-list-option-label')?.innerText.toLowerCase().includes(term) ||
@@ -377,6 +450,99 @@
                         return $gridDirection === 'column' ? "{$prefix}columns-{$columns}" : "{$prefix}grid-cols-{$columns}";
                     };
                 @endphp
+                @if ($hasGroupedOptions())
+                    <div
+                            @if ($isSearchable) x-show="visibleCheckboxListOptions.length" @endif
+                            class="fi-fo-checkbox-list"
+                            style="display: flex; flex-direction: column;"
+                    >
+                        @foreach ($getGroupedOptions() as $groupLabel => $groupChildren)
+                            @php
+                                $groupValues = array_values(array_map(fn ($v) => (string) $v, array_keys($groupChildren)));
+                                $groupLabelText = strip_tags((string) $groupLabel);
+                                $groupValuesJs = '[' . implode(',', array_map(fn ($v) => "'" . addslashes($v) . "'", $groupValues)) . ']';
+                            @endphp
+                            <div
+                                    class="dropdown-checkbox-list-group"
+                                    @if ($isSearchable) x-show="groupHasVisibleChildren({{ $groupValuesJs }})" @endif
+                            >
+                                <label class="dropdown-checkbox-list-group-header">
+                                    <x-filament::input.checkbox
+                                            :valid="! $errors->has($statePath)"
+                                            :attributes="
+                                            \Filament\Support\prepare_inherited_attributes(
+                                                new \Illuminate\View\ComponentAttributeBag([])
+                                            )
+                                                ->merge([
+                                                    'disabled' => $isDisabled,
+                                                    'x-bind:checked' => 'groupChecked(' . $groupValuesJs . ')',
+                                                    'x-effect' => '$el.indeterminate = groupIndeterminate(' . $groupValuesJs . ')',
+                                                    'x-on:change' => 'toggleGroup(' . $groupValuesJs . ', $event.target.checked)',
+                                                ], escape: false)
+                                                ->class(['mt-0'])"
+                                    />
+                                    <span class="block w-full overflow-hidden break-words font-semibold text-gray-950 dark:text-white">
+                                        @if ($isHtmlAllowed())
+                                            {!! $groupLabel !!}
+                                        @else
+                                            {{ $groupLabel }}
+                                        @endif
+                                    </span>
+                                </label>
+
+                                <div class="dropdown-checkbox-list-group-children">
+                                    @foreach ($groupChildren as $value => $label)
+                                        @php
+                                            $stringValue = addslashes((string) $value);
+
+                                            $childCheckboxAttributes = [
+                                                'disabled' => $isDisabled || $isOptionDisabled($value, $label),
+                                                'value' => $value,
+                                                'wire:loading.attr' => 'disabled',
+                                                'x-bind:checked' => "(state ?? []).map(String).includes('{$stringValue}')",
+                                                'x-on:change' => "toggleOption('{$stringValue}', \$event.target.checked)",
+                                            ];
+                                        @endphp
+                                        <div
+                                                data-group-label="{{ $groupLabelText }}"
+                                                @if ($isSearchable)
+                                                    :style="matchesSearch($el) ? 'margin-bottom: 0;' : 'margin-bottom: 0; display: none;'"
+                                                @endif
+                                                class="fi-fo-checkbox-list-option-wrapper"
+                                        >
+                                            <label class="fi-fo-checkbox-list-option-label flex w-full items-center gap-x-3 cursor-pointer" style="display: flex; align-items: center; width: 100%; gap: 0.75rem; cursor: pointer;">
+                                                <x-filament::input.checkbox
+                                                        :valid="! $errors->has($statePath)"
+                                                        :attributes="
+                                                        \Filament\Support\prepare_inherited_attributes($getExtraInputAttributeBag())
+                                                            ->merge($childCheckboxAttributes, escape: false)
+                                                            ->class(['mt-0'])
+                                                    "
+                                                />
+
+                                                <div class="grid flex-1 w-full text-sm leading-6">
+                                                    <span class="fi-fo-checkbox-list-option-label block w-full overflow-hidden break-words font-medium text-gray-950 dark:text-white">
+                                                        @if ($isHtmlAllowed())
+                                                            {!! $label !!}
+                                                        @else
+                                                            {{ $label }}
+                                                        @endif
+                                                    </span>
+
+                                                    @if ($hasDescription($value))
+                                                        <p class="fi-fo-checkbox-list-option-description text-gray-500 dark:text-gray-400">
+                                                            {{ $getDescription($value) }}
+                                                        </p>
+                                                    @endif
+                                                </div>
+                                            </label>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @else
                 <div
                         @if ($isSearchable) x-show="visibleCheckboxListOptions.length" @endif
                         style="display: grid; gap: 0.5rem;"
@@ -463,6 +629,7 @@
                         @endif
                     @endforelse
                 </div>
+                @endif
 
                 @if ($isSearchable)
                     <div
