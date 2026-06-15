@@ -17,6 +17,7 @@ class DropdownCheckboxList extends CheckboxList
     protected int|\Closure $optionsLimit = 50;
     protected int|\Closure $maxItemsShown = 50;
     protected array|\Closure|null $groupedOptions = null;
+    protected ?\Closure $groupedSearchCallback = null;
     protected bool|\Closure $collapseGroupsByDefault = false;
 
     protected function setUp(): void
@@ -63,9 +64,33 @@ class DropdownCheckboxList extends CheckboxList
         return $this;
     }
 
+    /**
+     * Server-side searched grouped options. The callback receives the current
+     * `$search` string and must return the grouped structure:
+     *
+     * [
+     *     'Group label' => ['value-1' => 'Label 1', ...],
+     *     ...
+     * ]
+     *
+     * Use `selectedOptionLabelsUsing()` alongside this so already-selected
+     * values keep their labels while the search query changes.
+     */
+    public function searchGroupedOptionsUsing(\Closure $callback): static
+    {
+        $this->groupedSearchCallback = $callback;
+
+        return $this;
+    }
+
+    public function hasGroupedSearchCallback(): bool
+    {
+        return $this->groupedSearchCallback !== null;
+    }
+
     public function hasGroupedOptions(): bool
     {
-        return $this->groupedOptions !== null;
+        return $this->groupedOptions !== null || $this->groupedSearchCallback !== null;
     }
 
     /**
@@ -86,7 +111,13 @@ class DropdownCheckboxList extends CheckboxList
 
     public function getGroupedOptions(): array
     {
-        $groups = $this->evaluate($this->groupedOptions) ?? [];
+        if ($this->groupedSearchCallback !== null) {
+            $groups = $this->evaluate($this->groupedSearchCallback, [
+                'search' => $this->getSearchValue(),
+            ]) ?? [];
+        } else {
+            $groups = $this->evaluate($this->groupedOptions) ?? [];
+        }
 
         $normalized = [];
 
@@ -158,7 +189,9 @@ class DropdownCheckboxList extends CheckboxList
     public function getOptions(): array
     {
         if ($this->hasGroupedOptions()) {
-            return $this->getFlattenedGroupedOptions();
+            $options = $this->getFlattenedGroupedOptions();
+
+            return $this->mergeSelectedOptionLabels($options);
         }
 
         if ($this->searchCallback) {
@@ -174,17 +207,29 @@ class DropdownCheckboxList extends CheckboxList
             $options = array_slice($options, 0, $limit, true);
         }
 
-        $state = $this->getState();
-        if (is_array($state) && !empty($state) && $this->selectedLabelsCallback) {
-            $selectedLabels = $this->evaluate($this->selectedLabelsCallback, [
-                'values' => $state,
-            ]) ?? [];
+        return $this->mergeSelectedOptionLabels($options);
+    }
 
-            if (is_array($selectedLabels)) {
-                foreach ($selectedLabels as $val => $lbl) {
-                    if (!isset($options[$val])) {
-                        $options[$val] = $lbl;
-                    }
+    protected function mergeSelectedOptionLabels(array $options): array
+    {
+        if (! $this->selectedLabelsCallback) {
+            return $options;
+        }
+
+        $state = $this->getState();
+
+        if (! is_array($state) || empty($state)) {
+            return $options;
+        }
+
+        $selectedLabels = $this->evaluate($this->selectedLabelsCallback, [
+            'values' => $state,
+        ]) ?? [];
+
+        if (is_array($selectedLabels)) {
+            foreach ($selectedLabels as $val => $lbl) {
+                if (! isset($options[$val])) {
+                    $options[$val] = $lbl;
                 }
             }
         }

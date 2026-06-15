@@ -5,6 +5,8 @@
     $isSearchable = $isSearchable();
     $statePath = $getStatePath();
     $usesServerSideSearch = $hasSearchCallback();
+    $usesServerSideGroupSearch = $hasGroupedSearchCallback();
+    $usesLivewireSearch = $usesServerSideSearch || $usesServerSideGroupSearch;
 
     $initialCollapsedGroups = [];
     if ($hasGroupedOptions()) {
@@ -86,8 +88,36 @@
                             removeItem(itemToRemove) {
                                 this.state = (this.state ?? []).filter((item) => String(item) !== String(itemToRemove))
                             },
+                            @if ($usesLivewireSearch)
+                            init() {
+                                this.syncOptionsLabels()
+                                Livewire.hook('commit', ({ component, succeed }) => {
+                                    succeed(() => {
+                                        this.$nextTick(() => {
+                                            if (component.el && ! component.el.contains(this.$root)) return
+                                            this.syncOptionsLabels()
+                                        })
+                                    })
+                                })
+                            },
+                            syncOptionsLabels() {
+                                let holder = this.$root.querySelector('[data-dcl-labels]')
+
+                                if (! holder) return
+
+                                try {
+                                    this.optionsLabels = { ...this.optionsLabels, ...JSON.parse(holder.dataset.dclLabels) }
+                                } catch (e) {}
+                            },
+                            @endif
                         }"
                 >
+                @if ($usesLivewireSearch)
+                    <span
+                            style="display: none;"
+                            data-dcl-labels="{{ json_encode(collect($getOptions())->mapWithKeys(fn ($label, $value) => [(string) $value => strip_tags((string) $label)]), JSON_UNESCAPED_UNICODE) }}"
+                    ></span>
+                @endif
                 <x-filament::input.wrapper :disabled="$isDisabled" :valid="! $errors->has($statePath)" class="cursor-pointer" style="width: 100%;">
                     <div
                             class="outline-none"
@@ -123,7 +153,7 @@
                 wire:key="{{ $this->getId() }}.{{ $statePath }}.{{ $field::class }}.panel"
                 class="p-4"
                 style="padding: 1rem;"
-                @if (! $usesServerSideSearch) wire:ignore @endif
+                @if (! $usesLivewireSearch) wire:ignore @endif
                 @if (! $usesServerSideSearch)
                 x-data="{
                     areAllCheckboxesChecked: false,
@@ -135,6 +165,18 @@
 
                     init() {
                         this.refreshCheckboxListOptions()
+
+                        @if ($usesServerSideGroupSearch)
+                        const rootEl = $root
+                        Livewire.hook('commit', ({ component, succeed }) => {
+                            succeed(() => {
+                                this.$nextTick(() => {
+                                    if (component.el && ! component.el.contains(rootEl)) return
+                                    this.refreshCheckboxListOptions()
+                                })
+                            })
+                        })
+                        @endif
 
                         this.$watch('search', () => {
                             this.updateVisibleCheckboxListOptions()
@@ -267,6 +309,9 @@
                     },
 
                     groupHasVisibleChildren(values) {
+                        @if ($usesServerSideGroupSearch)
+                            return true
+                        @else
                         void this.search
 
                         let groupValues = values.map(String)
@@ -280,6 +325,7 @@
 
                             return this.matchesSearch(wrapper)
                         })
+                        @endif
                     },
 
                     isGroupCollapsed(key) {
@@ -291,6 +337,9 @@
                     },
 
                     matchesSearch(checkboxListItem) {
+                        @if ($usesServerSideGroupSearch)
+                            return true
+                        @else
                         let checkbox = checkboxListItem.querySelector('input[type=checkbox]')
                         let value = checkbox?.value
 
@@ -314,6 +363,7 @@
                             checkboxListItem.querySelector('.fi-fo-checkbox-list-option-label')?.innerText.toLowerCase().includes(term) ||
                             checkboxListItem.querySelector('.fi-fo-checkbox-list-option-description')?.innerText.toLowerCase().includes(term)
                         )
+                        @endif
                     },
 
                     updateVisibleCheckboxListOptions() {
@@ -386,7 +436,8 @@
                 x-on:keydown.escape.window="
                     @if (! $usesServerSideSearch)
                         search = '';
-                    @else
+                    @endif
+                    @if ($usesLivewireSearch)
                         $wire.set('{{ $hasDropdownSearch() ? 'filterSearches.' . $getStatePath() : $getStatePath() . '_search' }}', '');
                     @endif
                 "
@@ -410,7 +461,7 @@
                 @if (! $isDisabled)
                     @if ($isSearchable)
                         <div class="dropdown-checkbox-list-search-container">
-                            @if ($usesServerSideSearch)
+                            @if ($usesLivewireSearch)
                                 <x-filament::input
                                         :placeholder="$getSearchPrompt()"
                                         type="search"
@@ -496,6 +547,9 @@
                                 $groupKey = 'g' . $loop->index;
                             @endphp
                             <div
+                                    @if ($usesServerSideGroupSearch)
+                                        wire:key="{{ $this->getId() }}.{{ $statePath }}.{{ $field::class }}.group.{{ md5($groupLabelText) }}"
+                                    @endif
                                     class="dropdown-checkbox-list-group"
                                     @if ($isSearchable) x-show="groupHasVisibleChildren({{ $groupValuesJs }})" @endif
                             >
@@ -554,8 +608,11 @@
                                             ];
                                         @endphp
                                         <div
+                                                @if ($usesServerSideGroupSearch)
+                                                    wire:key="{{ $this->getId() }}.{{ $statePath }}.{{ $field::class }}.option.{{ $value }}"
+                                                @endif
                                                 data-group-label="{{ $groupLabelText }}"
-                                                @if ($isSearchable)
+                                                @if ($isSearchable && ! $usesServerSideGroupSearch)
                                                     :style="matchesSearch($el) ? 'margin-bottom: 0;' : 'margin-bottom: 0; display: none;'"
                                                 @endif
                                                 class="fi-fo-checkbox-list-option-wrapper"
@@ -684,7 +741,7 @@
                 @if ($isSearchable)
                     <div
                             x-cloak
-                            @if ($usesServerSideSearch)
+                            @if ($usesLivewireSearch)
                                 x-show="! visibleCheckboxListOptions.length && @js(property_exists($getLivewire(), 'filterSearches') ? data_get($getLivewire()->filterSearches ?? [], $getStatePath(), '') : data_get($getLivewire(), $getStatePath() . '_search', '')) !== ''"
                             @else
                                 x-show="search && ! visibleCheckboxListOptions.length"

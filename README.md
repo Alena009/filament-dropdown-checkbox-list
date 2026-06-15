@@ -97,6 +97,30 @@ DropdownCheckboxList::make('permissions')
     ->collapseGroupsByDefault()
 ```
 
+#### Server-side searched groups
+
+For large, database-backed grouped datasets, use `searchGroupedOptionsUsing()`. The
+callback receives the current `$search` string and returns the grouped structure on
+each query (filtering happens on the server):
+
+```php
+DropdownCheckboxList::make('permissions')
+    ->searchGroupedOptionsUsing(fn (string $search) => Permission::query()
+        ->when($search, fn ($q) => $q->where('label', 'like', "%{$search}%"))
+        ->get()
+        ->groupBy('group')
+        ->map(fn ($items) => $items->pluck('label', 'id')->all())
+        ->all()
+    )
+    ->selectedOptionLabelsUsing(fn (array $values) => Permission::whereIn('id', $values)
+        ->pluck('label', 'id')
+        ->toArray()
+    )
+```
+
+As with flat server-side search, `selectedOptionLabelsUsing()` keeps labels for
+already-selected values that fall outside the current search results.
+
 ### Options limit
 
 Prevents rendering too many options at once (default: 50):
