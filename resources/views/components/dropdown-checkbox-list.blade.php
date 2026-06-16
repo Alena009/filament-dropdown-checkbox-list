@@ -8,6 +8,13 @@
     $usesServerSideGroupSearch = $hasGroupedSearchCallback();
     $usesLivewireSearch = $usesServerSideSearch || $usesServerSideGroupSearch;
 
+    // When the field is `->live()` (e.g. inside a table filter) the entangled
+    // state must commit to the server immediately, otherwise the change is only
+    // synced into Livewire's data bag and nothing re-renders until the next
+    // request. A deferred entangle is fine for plain forms. Livewire expects the
+    // "live" flag as the second `$entangle()` argument, not a `.live` modifier.
+    $entangleModifier = $isLive() ? ', true' : '';
+
     $initialCollapsedGroups = [];
     if ($hasGroupedOptions()) {
         $collapseGroupsByDefault = $shouldCollapseGroupsByDefault();
@@ -83,7 +90,7 @@
                         id="{{ $this->getId() }}-{{ $getStatePath() }}-trigger"
                         style="width: 100%;"
                         x-data="{
-                            state: $wire.$entangle('{{ $statePath }}'),
+                            state: $wire.$entangle('{{ $statePath }}'{{ $entangleModifier }}),
                             optionsLabels: @js(collect($getOptions())->mapWithKeys(fn ($label, $value) => [(string)$value => strip_tags((string)$label)])),
                             removeItem(itemToRemove) {
                                 this.state = (this.state ?? []).filter((item) => String(item) !== String(itemToRemove))
@@ -161,7 +168,7 @@
                     search: '',
                     visibleCheckboxListOptions: [],
                     collapsedGroups: @js($initialCollapsedGroups),
-                    state: $wire.$entangle('{{ $statePath }}'),
+                    state: $wire.$entangle('{{ $statePath }}'{{ $entangleModifier }}),
 
                     init() {
                         this.refreshCheckboxListOptions()
@@ -377,7 +384,7 @@
                     areAllCheckboxesChecked: false,
                     checkboxListOptions: [],
                     visibleCheckboxListOptions: [],
-                    state: $wire.$entangle('{{ $statePath }}'),
+                    state: $wire.$entangle('{{ $statePath }}'{{ $entangleModifier }}),
 
                     init() {
                         const rootEl = $root

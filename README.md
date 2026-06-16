@@ -121,6 +121,31 @@ DropdownCheckboxList::make('permissions')
 As with flat server-side search, `selectedOptionLabelsUsing()` keeps labels for
 already-selected values that fall outside the current search results.
 
+### Using in table filters
+
+Inside a table filter form, call `->live()` so the table re-queries immediately
+when the selection changes. Without it, the component's state is only synced into
+Livewire's data bag and the filter won't apply until the next request (e.g. a page
+reload):
+
+```php
+use AlenaDashko\DropdownCheckboxList\Components\DropdownCheckboxList;
+use Filament\Tables\Filters\Filter;
+use Illuminate\Database\Eloquent\Builder;
+
+Filter::make('subdepartments')
+    ->form([
+        DropdownCheckboxList::make('subdepartments')
+            ->live()
+            ->groupedOptions(/* ... */)
+            ->searchable(),
+    ])
+    ->query(fn (Builder $query, array $data): Builder => $query->when(
+        $data['subdepartments'] ?? null,
+        fn (Builder $query, $value): Builder => $query->whereIn('subdepartment', $value),
+    ))
+```
+
 ### Options limit
 
 Prevents rendering too many options at once (default: 50):
