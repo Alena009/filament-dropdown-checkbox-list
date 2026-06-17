@@ -603,11 +603,14 @@
                         }}
                 >
                     @forelse ($getOptions() as $value => $label)
+                        @if ($label === null)
+                            @continue
+                        @endif
                         @php
                             $stringValue = addslashes((string) $value);
 
                             $checkboxAttributes = [
-                                'disabled' => $isDisabled || $isOptionDisabled($value, $label),
+                                'disabled' => $isDisabled || $isOptionDisabled($value, (string) $label),
                                 'value' => $value,
                                 'wire:loading.attr' => 'disabled',
                             ];

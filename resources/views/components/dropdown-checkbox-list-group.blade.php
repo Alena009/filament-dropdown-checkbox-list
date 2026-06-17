@@ -67,10 +67,15 @@
                 @php
                     $value = $childKey;
                     $label = $childValue;
+                @endphp
+                @if ($label === null)
+                    @continue
+                @endif
+                @php
                     $stringValue = addslashes((string) $value);
 
                     $childCheckboxAttributes = [
-                        'disabled' => $isDisabled || $isOptionDisabled($value, $label),
+                        'disabled' => $isDisabled || $isOptionDisabled($value, (string) $label),
                         'value' => $value,
                         'wire:loading.attr' => 'disabled',
                         'x-bind:checked' => "(state ?? []).map(String).includes('{$stringValue}')",
