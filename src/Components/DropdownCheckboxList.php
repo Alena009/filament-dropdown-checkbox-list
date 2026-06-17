@@ -48,11 +48,15 @@ class DropdownCheckboxList extends CheckboxList
      * Render options split into groups. Each group has its own checkbox that
      * toggles every child option at once.
      *
-     * Expected structure:
+     * Groups can be nested to any depth. A node whose value is an array is a
+     * (sub)group; a node whose value is a scalar is a selectable option. For
+     * example, a three-level tree:
      * [
-     *     'Group label' => [
-     *         'value-1' => 'Label 1',
-     *         'value-2' => 'Label 2',
+     *     'Department' => [
+     *         'Subdepartment' => [
+     *             'value-1' => 'Label 1',
+     *             'value-2' => 'Label 2',
+     *         ],
      *     ],
      *     ...
      * ]
@@ -134,12 +138,31 @@ class DropdownCheckboxList extends CheckboxList
 
     protected function getFlattenedGroupedOptions(): array
     {
+        return $this->flattenGroupTree($this->getGroupedOptions());
+    }
+
+    /**
+     * Recursively collect every leaf option (value => label) from a (possibly
+     * nested) grouped tree. Array values are treated as subgroups, scalar
+     * values as selectable options.
+     *
+     * @param  array<mixed>  $nodes
+     * @return array<mixed>
+     */
+    public function flattenGroupTree(array $nodes): array
+    {
         $flat = [];
 
-        foreach ($this->getGroupedOptions() as $children) {
-            foreach ($children as $value => $label) {
-                $flat[$value] = $label;
+        foreach ($nodes as $key => $value) {
+            if (is_array($value)) {
+                foreach ($this->flattenGroupTree($value) as $leafValue => $leafLabel) {
+                    $flat[$leafValue] = $leafLabel;
+                }
+
+                continue;
             }
+
+            $flat[$key] = $value;
         }
 
         return $flat;

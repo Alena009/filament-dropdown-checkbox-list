@@ -10,7 +10,7 @@ Wraps a standard `CheckboxList` inside a dropdown trigger with badge-style selec
 - Server-side search via a callback
 - Client-side search (default, no callback needed)
 - Selected options always visible in the list regardless of search query
-- Grouped options with a per-group checkbox that toggles all of its children, with collapsible groups
+- Grouped options (nestable to any depth) with a per-group checkbox that toggles all of its descendants, with collapsible groups
 - Bulk toggle (select all / deselect all) scoped to visible options
 - Options limit to prevent rendering thousands of items
 - Full dark mode support
@@ -86,6 +86,38 @@ The state is still a flat array of the selected child values (e.g.
 matches both child labels and group labels (typing a group name reveals the whole
 group). Grouped options are intended for the default client-side mode and ignore
 `optionsLimit`.
+
+#### Nested groups
+
+Groups can be nested to any depth. A node whose value is an **array** is a
+(sub)group; a node whose value is a **scalar** is a selectable option. Every group,
+at every level, gets its own checkbox that toggles all of its descendant options and
+its own collapse toggle (collapsing a parent hides the whole subtree):
+
+```php
+DropdownCheckboxList::make('categories')
+    ->groupedOptions([
+        'Goods' => [
+            'Electronics' => [
+                'phones'  => 'Phones',
+                'laptops' => 'Laptops',
+            ],
+            'Clothing' => [
+                'shirts' => 'Shirts',
+                'shoes'  => 'Shoes',
+            ],
+        ],
+        'Services' => [
+            'Repair' => [
+                'car-repair'   => 'Car repair',
+                'phone-repair' => 'Phone repair',
+            ],
+        ],
+    ])
+```
+
+Search matches leaf labels as well as any ancestor group/subgroup name, and reveals
+the matching branch.
 
 Groups are collapsible: clicking a group's title (or its chevron) toggles its child
 list, while the group checkbox keeps toggling the selection. An active search query

@@ -16,13 +16,40 @@
     $entangleModifier = $isLive() ? ', true' : '';
 
     $initialCollapsedGroups = [];
+    $flattenLeaves = null;
     if ($hasGroupedOptions()) {
         $collapseGroupsByDefault = $shouldCollapseGroupsByDefault();
-        $groupIndex = 0;
-        foreach ($getGroupedOptions() as $ignoredGroupChildren) {
-            $initialCollapsedGroups['g' . $groupIndex] = $collapseGroupsByDefault;
-            $groupIndex++;
-        }
+
+        // Recursively collect leaf options (value => label) from a nested tree.
+        $flattenLeaves = function ($nodes) use (&$flattenLeaves) {
+            $leaves = [];
+            foreach ($nodes as $key => $value) {
+                if (is_array($value)) {
+                    foreach ($flattenLeaves($value) as $leafValue => $leafLabel) {
+                        $leaves[$leafValue] = $leafLabel;
+                    }
+                } else {
+                    $leaves[$key] = $value;
+                }
+            }
+            return $leaves;
+        };
+
+        // Build the initial collapse state for every (sub)group, keyed by the
+        // same path scheme the recursive partial uses ('g0', 'g0|1', ...).
+        $buildCollapsedGroups = function ($nodes, $prefix) use (&$buildCollapsedGroups, &$initialCollapsedGroups, $collapseGroupsByDefault) {
+            $index = 0;
+            foreach ($nodes as $child) {
+                if (is_array($child)) {
+                    $key = $prefix === '' ? ('g' . $index) : ($prefix . '|' . $index);
+                    $initialCollapsedGroups[$key] = $collapseGroupsByDefault;
+                    $buildCollapsedGroups($child, $key);
+                }
+                $index++;
+            }
+        };
+
+        $buildCollapsedGroups($getGroupedOptions(), '');
     }
 @endphp
 
@@ -547,113 +574,12 @@
                             style="display: flex; flex-direction: column;"
                     >
                         @foreach ($getGroupedOptions() as $groupLabel => $groupChildren)
-                            @php
-                                $groupValues = array_values(array_map(fn ($v) => (string) $v, array_keys($groupChildren)));
-                                $groupLabelText = strip_tags((string) $groupLabel);
-                                $groupValuesJs = '[' . implode(',', array_map(fn ($v) => "'" . addslashes($v) . "'", $groupValues)) . ']';
-                                $groupKey = 'g' . $loop->index;
-                            @endphp
-                            <div
-                                    @if ($usesServerSideGroupSearch)
-                                        wire:key="{{ $this->getId() }}.{{ $statePath }}.{{ $field::class }}.group.{{ md5($groupLabelText) }}"
-                                    @endif
-                                    class="dropdown-checkbox-list-group"
-                                    @if ($isSearchable) x-show="groupHasVisibleChildren({{ $groupValuesJs }})" @endif
-                            >
-                                <div class="dropdown-checkbox-list-group-header">
-                                    <label class="dropdown-checkbox-list-group-checkbox" style="display: flex; align-items: center; cursor: pointer;">
-                                        <x-filament::input.checkbox
-                                                :valid="! $errors->has($statePath)"
-                                                :attributes="
-                                                \Filament\Support\prepare_inherited_attributes(
-                                                    new \Illuminate\View\ComponentAttributeBag([])
-                                                )
-                                                    ->merge([
-                                                        'disabled' => $isDisabled,
-                                                        'x-bind:checked' => 'groupChecked(' . $groupValuesJs . ')',
-                                                        'x-effect' => '$el.indeterminate = groupIndeterminate(' . $groupValuesJs . ')',
-                                                        'x-on:change' => 'toggleGroup(' . $groupValuesJs . ', $event.target.checked)',
-                                                    ], escape: false)
-                                                    ->class(['mt-0'])"
-                                        />
-                                    </label>
-
-                                    <div
-                                            class="dropdown-checkbox-list-group-title"
-                                            x-on:click="toggleGroupCollapse('{{ $groupKey }}')"
-                                    >
-                                        <span class="block w-full overflow-hidden break-words font-semibold text-gray-950 dark:text-white">
-                                            @if ($isHtmlAllowed())
-                                                {!! $groupLabel !!}
-                                            @else
-                                                {{ $groupLabel }}
-                                            @endif
-                                        </span>
-
-                                        <x-filament::icon
-                                                icon="heroicon-m-chevron-down"
-                                                class="dropdown-checkbox-list-group-chevron h-5 w-5 text-gray-400 dark:text-gray-500"
-                                                x-bind:style="isGroupCollapsed('{{ $groupKey }}') ? 'transform: rotate(-90deg);' : 'transform: rotate(0deg);'"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div
-                                        class="dropdown-checkbox-list-group-children"
-                                        x-show="! isGroupCollapsed('{{ $groupKey }}')"
-                                >
-                                    @foreach ($groupChildren as $value => $label)
-                                        @php
-                                            $stringValue = addslashes((string) $value);
-
-                                            $childCheckboxAttributes = [
-                                                'disabled' => $isDisabled || $isOptionDisabled($value, $label),
-                                                'value' => $value,
-                                                'wire:loading.attr' => 'disabled',
-                                                'x-bind:checked' => "(state ?? []).map(String).includes('{$stringValue}')",
-                                                'x-on:change' => "toggleOption('{$stringValue}', \$event.target.checked)",
-                                            ];
-                                        @endphp
-                                        <div
-                                                @if ($usesServerSideGroupSearch)
-                                                    wire:key="{{ $this->getId() }}.{{ $statePath }}.{{ $field::class }}.option.{{ $value }}"
-                                                @endif
-                                                data-group-label="{{ $groupLabelText }}"
-                                                @if ($isSearchable && ! $usesServerSideGroupSearch)
-                                                    :style="matchesSearch($el) ? 'margin-bottom: 0;' : 'margin-bottom: 0; display: none;'"
-                                                @endif
-                                                class="fi-fo-checkbox-list-option-wrapper"
-                                        >
-                                            <label class="fi-fo-checkbox-list-option-label flex w-full items-center gap-x-3 cursor-pointer" style="display: flex; align-items: center; width: 100%; gap: 0.75rem; cursor: pointer;">
-                                                <x-filament::input.checkbox
-                                                        :valid="! $errors->has($statePath)"
-                                                        :attributes="
-                                                        \Filament\Support\prepare_inherited_attributes($getExtraInputAttributeBag())
-                                                            ->merge($childCheckboxAttributes, escape: false)
-                                                            ->class(['mt-0'])
-                                                    "
-                                                />
-
-                                                <div class="grid flex-1 w-full text-sm leading-6">
-                                                    <span class="fi-fo-checkbox-list-option-label block w-full overflow-hidden break-words font-medium text-gray-950 dark:text-white">
-                                                        @if ($isHtmlAllowed())
-                                                            {!! $label !!}
-                                                        @else
-                                                            {{ $label }}
-                                                        @endif
-                                                    </span>
-
-                                                    @if ($hasDescription($value))
-                                                        <p class="fi-fo-checkbox-list-option-description text-gray-500 dark:text-gray-400">
-                                                            {{ $getDescription($value) }}
-                                                        </p>
-                                                    @endif
-                                                </div>
-                                            </label>
-                                        </div>
-                                    @endforeach
-                                </div>
-                            </div>
+                            @include('dropdown-checkbox-list::components.dropdown-checkbox-list-group', [
+                                'groupLabel' => $groupLabel,
+                                'groupChildren' => $groupChildren,
+                                'groupKey' => 'g' . $loop->index,
+                                'ancestorLabel' => '',
+                            ])
                         @endforeach
                     </div>
                 @else
