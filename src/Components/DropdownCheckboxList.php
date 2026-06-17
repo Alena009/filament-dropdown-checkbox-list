@@ -195,10 +195,12 @@ class DropdownCheckboxList extends CheckboxList
         $livewire = $this->getLivewire();
 
         if (in_array(HasDropdownSearch::class, class_uses_recursive($livewire))) {
-            return data_get($livewire->filterSearches, $this->getStatePath(), '');
+            $value = data_get($livewire->filterSearches, $this->getStatePath());
+        } else {
+            $value = data_get($livewire, $this->getStatePath() . '_search');
         }
 
-        return data_get($livewire, $this->getStatePath() . '_search', '');
+        return is_string($value) ? $value : '';
     }
 
     public function hasDropdownSearch(): bool
